@@ -1,0 +1,10 @@
+{
+  "title": "Flappy Chad",
+  "description": "Un clic = un battement d'ailes. Passe entre les haltères et vole plus loin que les potes pour leur piquer le record.",
+  "author": "ChadGang",
+  "category": "Solo",
+  "emoji": "🐥",
+  "image": "cover.png",
+  "classement": "score",
+  "unite": "pts"
+}

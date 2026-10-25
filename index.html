@@ -229,17 +229,33 @@ function frame(now){
 
 /* ---------- Dessin ---------- */
 function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect?ctx.roundRect(x,y,w,h,r):ctx.rect(x,y,w,h)}
+/* Décor : immeubles calculés une fois (fenêtres fixes, pas de clignotement), étoiles qui scintillent doucement */
+function rng(seed){return()=>{seed=(seed*16807)%2147483647;return(seed-1)/2147483646}}
+function makeLayer(seed,count,minW,maxW,minH,maxH,winP){const r=rng(seed),b=[];let x=0;
+  for(let i=0;i<count;i++){const w=minW+r()*(maxW-minW)|0,h=minH+r()*(maxH-minH)|0,cols=Math.max(1,(w-12)/14|0),rows=Math.max(1,(h-16)/18|0),win=[];
+    for(let cy=0;cy<rows;cy++)for(let cx=0;cx<cols;cx++)if(r()<winP)win.push([8+cx*14,12+cy*18,r()<.25]);
+    b.push({x,w,h,win,ant:r()<.25,roof:r()<.3});x+=w+(r()*10|0)}return{b,total:x}}
+const LAYERS=[{...makeLayer(7,26,40,90,120,240,.0),sp:.12,col:'#2c38c9'},{...makeLayer(42,22,48,96,90,200,.28),sp:.3,col:'#1d27b0'},{...makeLayer(99,18,60,110,60,150,.18),sp:.55,col:'#141a85'}];
+const STARS=[...Array(60)].map((_,i)=>{const r=rng(1000+i);return{x:r(),y:r()*.55,s:r()<.2?2.2:1.4,p:r()*6.3}});
+const CLOUDS=[...Array(5)].map((_,i)=>{const r=rng(500+i);return{x:r()*1400,y:60+r()*200,w:90+r()*120}});
 function drawBg(){
-  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#3a49ff');g.addColorStop(.65,'#2433f2');g.addColorStop(1,'#1b1f6b');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  // étoiles
-  ctx.fillStyle='#ffffff55';for(let i=0;i<40;i++){const x=((i*97+S.bgx*.2)%(W+20))-10,y=(i*53)%300;ctx.fillRect(W-x,y,2,2)}
-  // soleil-haltère
-  ctx.fillStyle='#ffd42633';ctx.beginPath();ctx.arc(W*.78,150,70,0,7);ctx.fill();
-  // immeubles (parallaxe)
-  const layers=[[.3,'#1d27c9',200,90],[.6,'#151c9a',150,120]];
-  for(const [sp,col,base,var_] of layers){ctx.fillStyle=col;const off=(S.bgx*sp)%80;
-    for(let x=-off-80,i=0;x<W+80;x+=80,i++){const k=Math.floor((S.bgx*sp)/80)+i,h2=base+((k*37)%var_);ctx.fillRect(x,GROUND-h2,72,h2);
-      ctx.fillStyle='#ffd42644';for(let wy=GROUND-h2+14;wy<GROUND-10;wy+=22)for(let wx=x+10;wx<x+64;wx+=18)if(((k*7+wy+wx)|0)%3===0)ctx.fillRect(wx,wy,8,10);ctx.fillStyle=col}}
+  const g=ctx.createLinearGradient(0,0,0,GROUND);g.addColorStop(0,'#141a6e');g.addColorStop(.55,'#2f3df0');g.addColorStop(.9,'#7f6cf0');g.addColorStop(1,'#ff9fc4');ctx.fillStyle=g;ctx.fillRect(0,0,W,GROUND);
+  // étoiles (scintillement lent, pas de clignotement brutal)
+  for(const st of STARS){const a=.35+.3*Math.sin(S.t/50+st.p);ctx.globalAlpha=a;ctx.fillStyle='#fff';const x=((st.x*W*1.3-S.bgx*.04)%(W*1.3)+W*1.3)%(W*1.3)-W*.15;ctx.beginPath();ctx.arc(x,st.y*GROUND,st.s/2+.4,0,7);ctx.fill()}
+  ctx.globalAlpha=1;
+  // lune
+  const mg=ctx.createRadialGradient(W*.78,140,10,W*.78,140,110);mg.addColorStop(0,'#fff6d6');mg.addColorStop(.32,'#ffe9a8');mg.addColorStop(.36,'#ffd42633');mg.addColorStop(1,'#ffd42600');ctx.fillStyle=mg;ctx.beginPath();ctx.arc(W*.78,140,110,0,7);ctx.fill();
+  // nuages
+  ctx.fillStyle='#ffffff18';for(const c of CLOUDS){const x=((c.x-S.bgx*.08)%(W+300)+W+300)%(W+300)-200;ctx.beginPath();ctx.ellipse(x,c.y,c.w/2,c.w/7,0,0,7);ctx.ellipse(x+c.w*.2,c.y-c.w*.08,c.w/3.5,c.w/8,0,0,7);ctx.fill()}
+  // immeubles en 3 plans
+  for(const L of LAYERS){const off=(S.bgx*L.sp)%L.total;
+    for(const rep of [0,1,2]){const base=rep*L.total-off;if(base>W)break;
+      for(const b of L.b){const x=base+b.x;if(x+b.w<0||x>W)continue;const top=GROUND-b.h;
+        ctx.fillStyle=L.col;ctx.fillRect(x,top,b.w,b.h);
+        if(b.roof){ctx.fillRect(x+b.w*.25,top-10,b.w*.5,10)}if(b.ant){ctx.fillRect(x+b.w*.6,top-26,3,26);ctx.fillStyle='#ff4f6d';ctx.beginPath();ctx.arc(x+b.w*.6+1.5,top-27,2.4,0,7);ctx.fill()}
+        for(const w of b.win){ctx.fillStyle=w[2]?'#ffe08a':'#ffd42666';ctx.fillRect(x+w[0],top+w[1],7,9)}}}}
+  // brume au pied des immeubles
+  const fog=ctx.createLinearGradient(0,GROUND-60,0,GROUND);fog.addColorStop(0,'#2433f200');fog.addColorStop(1,'#2433f255');ctx.fillStyle=fog;ctx.fillRect(0,GROUND-60,W,60);
 }
 function drawPipe(p){
   const x=p.x,w=p.w;
@@ -252,22 +268,45 @@ function drawPipe(p){
   bar(-10,p.top-50);plate(p.top,true);
   bar(p.top+p.g+50,GROUND);plate(p.top+p.g,false);
 }
+/* Tête de Chad (profil 3/4 tourné vers la droite), dessinée en vectoriel. r = demi-hauteur de la tête. */
+function chadHead(ctx,r,o){o=o||{};const k=r/20;ctx.save();ctx.scale(k,k);ctx.lineJoin='round';ctx.lineCap='round';
+  const ink='#12102b',skin=o.skin||'#f3c892',shade=o.shade||'#d9a46b',hair='#2a1a10',beard='rgba(90,58,32,.38)';
+  ctx.lineWidth=2.6;ctx.strokeStyle=ink;
+  // cou
+  ctx.fillStyle=shade;ctx.beginPath();ctx.moveTo(-9,10);ctx.lineTo(-11,22);ctx.lineTo(7,22);ctx.lineTo(6,12);ctx.closePath();ctx.fill();ctx.stroke();
+  // visage + mâchoire carrée
+  ctx.fillStyle=skin;ctx.beginPath();
+  ctx.moveTo(-13,-6);ctx.quadraticCurveTo(-13,-17,-2,-19);ctx.lineTo(9,-18);ctx.quadraticCurveTo(15,-16,15,-9);
+  ctx.lineTo(16,-3);ctx.lineTo(19,1);ctx.lineTo(16,3);ctx.lineTo(16,8);ctx.lineTo(15,13);ctx.lineTo(12,18);ctx.lineTo(1,19);ctx.lineTo(-7,14);ctx.lineTo(-13,6);ctx.closePath();ctx.fill();ctx.stroke();
+  // barbe de 3 jours
+  ctx.fillStyle=beard;ctx.beginPath();ctx.moveTo(-6,6);ctx.lineTo(-7,13.5);ctx.lineTo(1,18.5);ctx.lineTo(12,17.5);ctx.lineTo(15,12.5);ctx.lineTo(15.6,7.5);ctx.lineTo(10,9);ctx.lineTo(6,7.5);ctx.lineTo(2,9.5);ctx.closePath();ctx.fill();
+  // ombre de pommette
+  ctx.fillStyle='rgba(160,100,50,.25)';ctx.beginPath();ctx.moveTo(-2,1);ctx.quadraticCurveTo(4,6,9,3);ctx.lineTo(8,6);ctx.quadraticCurveTo(2,8,-2,4);ctx.fill();
+  // oreille
+  ctx.fillStyle=skin;ctx.beginPath();ctx.ellipse(-8,-2,3.4,5,-.2,0,7);ctx.fill();ctx.stroke();ctx.strokeStyle='rgba(18,16,43,.5)';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(-8,-2,1.8,-1,1.6);ctx.stroke();ctx.strokeStyle=ink;ctx.lineWidth=2.6;
+  // cheveux plaqués en arrière
+  ctx.fillStyle=hair;ctx.beginPath();ctx.moveTo(-14,-2);ctx.quadraticCurveTo(-18,-17,-6,-23);ctx.quadraticCurveTo(8,-29,17,-20);ctx.quadraticCurveTo(14,-15,7,-15.5);ctx.quadraticCurveTo(-1,-15,-4,-11);ctx.quadraticCurveTo(-7,-7,-9,-3);ctx.quadraticCurveTo(-11,-1,-14,-2);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(-9,-17);ctx.quadraticCurveTo(0,-23,10,-19);ctx.stroke();ctx.strokeStyle=ink;
+  // sourcil épais + œil plissé
+  ctx.lineWidth=3.2;ctx.beginPath();ctx.moveTo(3,-9);ctx.lineTo(13,-10);ctx.stroke();
+  if(o.shades){ctx.fillStyle=ink;ctx.beginPath();ctx.moveTo(2,-7);ctx.lineTo(16,-8);ctx.lineTo(15,-3);ctx.lineTo(4,-2.5);ctx.closePath();ctx.fill();ctx.fillStyle='rgba(255,255,255,.55)';ctx.fillRect(9,-6.5,4,1.4)}
+  else{ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(6,-5.5);ctx.quadraticCurveTo(9,-6.8,12,-5.5);ctx.stroke();ctx.fillStyle=ink;ctx.beginPath();ctx.arc(10,-5.4,1.2,0,7);ctx.fill()}
+  // nez droit
+  ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(14.5,-6);ctx.lineTo(18.6,1);ctx.lineTo(15,2.2);ctx.stroke();
+  // sourire en coin
+  ctx.beginPath();ctx.moveTo(11,9.4);ctx.quadraticCurveTo(13.5,9.6,15.2,8.2);ctx.stroke();
+  // menton creusé
+  ctx.strokeStyle='rgba(18,16,43,.45)';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(11,14.5);ctx.lineTo(11.5,17.5);ctx.stroke();
+  ctx.restore()}
+
 function drawBird(){
   const b=bird;ctx.save();ctx.translate(b.x,b.y);ctx.rotate(b.rot);
-  // aile
-  const wy=b.wing>.5||((S.mode==='menu'||S.mode==='ready')&&b.wing)?-10:6;
-  ctx.fillStyle='#fff';ctx.strokeStyle='#12102b';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(-8,wy,11,7,-.4,0,7);ctx.fill();ctx.stroke();
-  // corps
-  ctx.fillStyle='#ffd426';ctx.beginPath();ctx.arc(0,0,17,0,7);ctx.fill();ctx.stroke();
-  // mâchoire carrée + barbe
-  ctx.fillStyle='#6b4a2b';ctx.beginPath();ctx.moveTo(-2,6);ctx.lineTo(16,4);ctx.lineTo(13,14);ctx.lineTo(0,15);ctx.closePath();ctx.fill();
-  // bec
-  ctx.fillStyle='#ff9f1c';ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(26,4);ctx.lineTo(14,8);ctx.closePath();ctx.fill();ctx.stroke();
-  // lunettes de soleil
-  ctx.fillStyle='#12102b';rr(2,-9,16,8,3);ctx.fill();rr(-6,-8,7,7,3);ctx.fill();ctx.fillRect(-1,-7,4,2);
-  ctx.fillStyle='#ffffff99';ctx.fillRect(6,-7,4,2);
-  // mèche
-  ctx.fillStyle='#3b2a1a';ctx.beginPath();ctx.moveTo(-12,-12);ctx.quadraticCurveTo(0,-26,12,-14);ctx.quadraticCurveTo(2,-16,-12,-12);ctx.fill();
+  // ailes (derrière la tête)
+  const up=b.wing>.5||((S.mode==='menu'||S.mode==='ready')&&b.wing);
+  ctx.fillStyle='#fff';ctx.strokeStyle='#12102b';ctx.lineWidth=2.6;
+  ctx.save();ctx.translate(-10,2);ctx.rotate(up?-.9:.35);ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(-18,-6,-22,-2);ctx.quadraticCurveTo(-16,2,-20,6);ctx.quadraticCurveTo(-12,8,0,6);ctx.closePath();ctx.fill();ctx.stroke();
+  ctx.strokeStyle='#12102b55';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-6,2);ctx.lineTo(-16,1);ctx.moveTo(-6,4);ctx.lineTo(-14,5);ctx.stroke();ctx.restore();
+  chadHead(ctx,22,{shades:S.score>=25});
   ctx.restore();
 }
 function drawGround(){

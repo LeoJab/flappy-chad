@@ -209,12 +209,13 @@ var SIM=function(seed,hooks){
 
 /* ===== Flappy Chad : affichage (la logique est dans la simulation SIM, rejouée par le hub) ===== */
 const cv=$('cv'),ctx=cv.getContext('2d');
-const H=640;let W=360,scale=1,dpr=1;
-function resize(){dpr=Math.min(2,window.devicePixelRatio||1);scale=innerHeight/H;W=Math.max(300,Math.min(innerWidth/scale,1100));cv.width=Math.round(W*scale*dpr);cv.height=Math.round(H*scale*dpr);cv.style.width=W*scale+'px';cv.style.height=H*scale+'px'}
+const H=640,MINW=540;let W=360,scale=1,dpr=1,TOP=0; // TOP : ciel en plus au-dessus du monde (écrans en hauteur)
+function resize(){dpr=Math.min(2,window.devicePixelRatio||1);// sur téléphone on dézoome un peu pour voir les haltères arriver d'aussi loin que possible
+  scale=Math.min(innerHeight/H,innerWidth/MINW);W=Math.max(300,Math.min(innerWidth/scale,1100));TOP=Math.max(0,innerHeight/scale-H);cv.width=Math.round(W*scale*dpr);cv.height=Math.round((H+TOP)*scale*dpr);cv.style.width=W*scale+'px';cv.style.height=(H+TOP)*scale+'px'}
 addEventListener('resize',resize);resize();
 const GROUND=562;
 let S=null;const V={t:0,bgx:0,gx:0,parts:[],pops:[],shake:0,wing:0,rot:0,overSent:false};
-const BXS=()=>Math.min(W*.3,140); // position à l'écran de Chad ; le monde de la simulation est le même pour tous les écrans
+const BXS=()=>Math.min(W*.2,140); // position à l'écran de Chad ; le monde de la simulation est le même pour tous les écrans
 function newGame(seed){S=SIM(seed,{ev:onEv});CG.setSim(S);V.parts=[];V.pops=[];V.shake=0;V.overSent=false;V.rot=0;CG.setScore(0)}
 function onEv(name,v){
   if(name==='flap'){V.wing=1;CG.sfx.tone(420,0,.08,{type:'triangle',v:.35,to:620});CG.sfx.noise(0,.06,.25,2500);for(let i=0;i<4;i++)V.parts.push({x:BXS()-10,y:S.bird.y+6,vx:-1-Math.random()*2,vy:Math.random()*2-.5,life:22,c:'#fff',r:3})}
@@ -246,7 +247,7 @@ const CLOUDS=[...Array(5)].map((_,i)=>{const r=rng(500+i);return{x:r()*1400,y:60
 function drawBg(){
   const g=ctx.createLinearGradient(0,0,0,GROUND);g.addColorStop(0,'#141a6e');g.addColorStop(.55,'#2f3df0');g.addColorStop(.9,'#7f6cf0');g.addColorStop(1,'#ff9fc4');ctx.fillStyle=g;ctx.fillRect(0,0,W,GROUND);
   // étoiles (scintillement lent, pas de clignotement brutal)
-  for(const st of STARS){const a=.35+.3*Math.sin(V.t/50+st.p);ctx.globalAlpha=a;ctx.fillStyle='#fff';const x=((st.x*W*1.3-V.bgx*.04)%(W*1.3)+W*1.3)%(W*1.3)-W*.15;ctx.beginPath();ctx.arc(x,st.y*GROUND,st.s/2+.4,0,7);ctx.fill()}
+  for(const st of STARS){const a=.35+.3*Math.sin(V.t/50+st.p);ctx.globalAlpha=a;ctx.fillStyle='#fff';const x=((st.x*W*1.3-V.bgx*.04)%(W*1.3)+W*1.3)%(W*1.3)-W*.15;ctx.beginPath();ctx.arc(x,st.y*GROUND,st.s/2+.4,0,7);ctx.fill();if(TOP>0){ctx.beginPath();ctx.arc(W-x,-st.y/.55*TOP,st.s/2+.4,0,7);ctx.fill()}}
   ctx.globalAlpha=1;
   // lune
   const mg=ctx.createRadialGradient(W*.78,140,10,W*.78,140,110);mg.addColorStop(0,'#fff6d6');mg.addColorStop(.32,'#ffe9a8');mg.addColorStop(.36,'#ffd42633');mg.addColorStop(1,'#ffd42600');ctx.fillStyle=mg;ctx.beginPath();ctx.arc(W*.78,140,110,0,7);ctx.fill();
@@ -270,7 +271,7 @@ function drawPipe(p){
     rr(x-6,up?y-26:y,w+12,26,8);ctx.fill();ctx.stroke();
     ctx.fillStyle='#12102b33';rr(x+2,up?y-20:y+6,w-4,6,3);ctx.fill();
     rr(x+2,up?y-52:y+26,w-4,26,7);ctx.fillStyle=p.moving?'#c83a55':'#e0b400';ctx.fill();ctx.stroke()};
-  bar(-10,p.top-50);plate(p.top,true);
+  bar(-TOP-10,p.top-50);plate(p.top,true);
   bar(p.top+p.g+50,GROUND);plate(p.top+p.g,false);
 }
 /* Tête de Chad (profil 3/4 tourné vers la droite), dessinée en vectoriel. r = demi-hauteur de la tête. */
@@ -322,6 +323,7 @@ function drawGround(){
 }
 function draw(){
   ctx.setTransform(dpr*scale,0,0,dpr*scale,0,0);
+  if(TOP>0){ctx.fillStyle='#141a6e';ctx.fillRect(0,0,W,TOP+1);ctx.translate(0,TOP)}
   ctx.save();if(V.shake>.5)ctx.translate((Math.random()-.5)*V.shake,(Math.random()-.5)*V.shake);
   drawBg();
   if(S){const off=BXS()-S.BX;for(const p of S.pipes){const sx=p.x+off;if(sx>W+80||sx<-90)continue;drawPipe({...p,x:sx})}}
